@@ -1,184 +1,204 @@
 import random
 from collections import deque
-import os
 import sys
 
-from event import FutureEventSet
-from event import Event
-from event import EventType
+from event import FutureEventSet, Event, EventType
 from customer import Customer
 from station import Station
 
-
 class Simulation:
-    def __init__(self, stations: dict, arrival_dist, station_service_dists: dict):
-        """
-        Initialize the simulation environment.
-        
-        :param stations: Dictionary mapping station names to Station objects
-        :param arrival_dist: Distribution object for customer arrival times
-        :param station_service_dists: Dictionary mapping station names to service time distributions
-        """
+    def __init__(self, stations: dict, arrival_dist, station_service_dists: dict = None):
         self.fes = FutureEventSet()     # priority queue
         self.clock = 0.0
         self.stations = stations        # dict: name -> Station
         self.arrival_dist = arrival_dist
-        self.station_service_dists = station_service_dists
-        self.abandoned_customers = 0
-        self.is_open = False
-        
-        # Statistics for the analysis later
-        self.completed_customers = []
+
         self.total_customers = 0
-        self.last_queue_record_time = 0.0
+        self.completed_customers = []
+        self.abandoned_customers = 0
+        self.last_energy_record_time = 0.0
 
     def schedule(self, event: Event):
-        """
-        Add an event to the future event set.
-        
-        :param event: Event object to be scheduled
-        """
         self.fes.add(event)
-    
-    def add_to_queue(customer: Customer, station: Station):
-        """
-        Add customer to the queue.
-        :param customer: customer object to add to the queue.
-        """
-        station.waiting_queue.append(customer)
-    
-    def pop_from_entrance_queue(self, station):
-        """
-        Pop next customer from the queue.
 
-        :return: next Customer object, or None if queue empty
+    def _generate_synthetic_customer(self) -> Customer:
         """
-        while station.waiting_queue:
-            customer = station.waiting_queue.popleft()
-            return customer
-            
-        return None
-    
-    
-    def _handle_arrival(self):
+        Helper to generate a random customer with EV or PHEV properties
         """
-        Handle customer arrival at some station.
-        
-        Creates a new customer, adds them to a queue and schedules next arrival.
-        """
-        
-        # Create new customer
         self.total_customers += 1
 
-        #TODO: car_type = ?
+        is_bev = random.random() < 0.70
+        car_type = "BEV" if is_bev else "PHEV"
 
-        customer = Customer(
+        if is_bev:
+            energy_needed = random.uniform(15.0, 45.0) # between 15 and 45 kWh to top up
+        else:
+            energy_needed = random.uniform(5.0, 12.0) # between 5 and 12 kWh to top up
+
+        work_duration = random.normalvariate(510.0, 30.0) # TODO: fix values 
+        departure_time = self.clock + work_duration
+        
+        return Customer(
             cust_id=self.total_customers,
             arrival_time=self.clock,
-            # TODO: car_type=car_type,
+            car_type=car_type,
+            energy_needed=energy_needed,
+            departure_time=departure_time
         )
 
-        # TODO: customer.cur_station.waiting_queue(customer)
+    def _handle_arrival(self):
+        """
+        Handles a vehicle arriving at the parking lot
+        """
+        customer = self._generate_synthetic_customer()
+
+        station = self.stations["Workplace_Station"]
         
-        # Schedule next arrival
-        next_arrival_time = self.arrival_dist.sample(self.clock)
+        print(f"[{self.clock:.1f}:] Customer {customer.id} ({customer.car_type}). {customer.energy_needed:.1f} kWh. Departure at {customer.departure_time:.1f}")
+        
+        # updating energy consumption of the station:
+        time_elapsed = self.clock - self.last_energy_record_time
+        station.calculate_energy_draw(self.clock, time_elapsed)
+        self.last_energy_record_time = self.clock
+
+        # try to occupy a charging spot
+        if station.occupied_spots < station.capacity:
+            station.occupy()
+            customer.station_start_time = self.clock
+            
+            charge_rate = station.charger_power_rate if customer.car_type == "BEV" else 3.7
+            charge_duration_hours = customer.energy_needed / charge_rate
+            charge_duration_minutes = charge_duration_hours * 60.0
+            
+            completion_time = self.clock + charge_duration_minutes
+
+            if completion_time < customer.departure_time: # charging finishes before they leave work
+                self.schedule(Event(time=completion_time, type=EventType.CHARGING, customer=customer, station=station))
+            else:
+                self.schedule(Event(time=customer.departure_time, type=EventType.DEPARTURE, customer=customer, station=station))
+            
+            print(f"  -> Started charging. Will finish at {completion_time:.1f}")
+        else:
+            # no spots available, so join the queue
+            station.waiting_queue.append(customer)
+            print(f"  -> Joined the waiting queue (length: {len(station.waiting_queue)})")
+
+        next_arrival_delay = self.arrival_dist.sample(self.clock)
         self.schedule(Event(
-            time=self.clock + next_arrival_time,
+            time=self.clock + next_arrival_delay,
             type=EventType.ARRIVAL,
             customer=None
         ))
-    
-    def _handle_station_departure(self, event):
+
+    def _handle_charging_complete(self, event):
         """
-        Handle customer finishing at a station.
-        
-        Release the parking spot, attempts to release blocked
-        customers and moves customer to their next station.
-        
-        :param event: event object containing the customer and station
+        Handles the event where a car finishes charging.
+        The driver moves their car immediately to a regular parking spot,
+        releasing the charger
         """
-        # TODO: adapt to EV charging scenario
         customer = event.customer
-        current_station_name = event.station_name
-        next_station_name = customer.get_next_station()
+        station = event.station
+
+        if customer.station_end_time is not None:
+            return
+
+        time_elapsed = self.clock - self.last_energy_record_time
+        station.calculate_energy_draw(self.clock, time_elapsed)
+        self.last_energy_record_time = self.clock
+
+        # charge the customer's battery
+        charge_rate = station.charger_power_rate if customer.car_type == "BEV" else 3.7
+        actual_time_charging = self.clock - customer.station_start_time
+        customer.charge(charge_rate, actual_time_charging)
         
-        if next_station_name:
-            next_station = self.stations[next_station_name]
-            # Try to enter next station
-            if next_station.can_enter(customer.car_type):
-                # Release old spot(s)
-                self.stations[current_station_name].release(customer)
-                
-                # Move to next station
-                customer.advance_to_next_station()
-                next_station.occupy(customer.car_type, customer.is_priority)
-                customer.station_entry_times[next_station] = self.clock
+        customer.station_end_time = self.clock
+        
+        print(f"[{self.clock:.1f}:] Customer {customer.id} ({customer.car_type}) charged {customer.energy_received:.1f} kWh")
 
-                # Schedule departure from next station
-                service_time = self.station_service_dists[next_station_name][customer.car_type].sample()
-                self.schedule(Event(
-                    time=self.clock + service_time,
-                    type=EventType.DEPARTURE,
-                    customer=customer,
-                    station_name=next_station_name
-                ))
+        station.release()
+        self._complete_customer(customer)
+        self._process_queue(station)
 
-                self._release_blocked_customers(current_station_name)
+
+    def _handle_workplace_departure(self, event):
+        """
+        Handles the event where an employee leaves work at the end of the day.
+        If they were still plugged in, they unplug (even if not fully charged).
+        """
+        customer = event.customer
+        station = event.station
+
+        if customer.station_end_time is not None:
+            return
+
+        time_elapsed = self.clock - self.last_energy_record_time
+        station.calculate_energy_draw(self.clock, time_elapsed)
+        self.last_energy_record_time = self.clock
+
+        # charge the battery with whatever energy they got before leaving
+        charge_rate = station.charger_power_rate if customer.car_type == "BEV" else 3.7
+        actual_time_charging = self.clock - customer.station_start_time
+        customer.charge(charge_rate, actual_time_charging)
+        
+        customer.station_end_time = self.clock
+        
+        print(f"[{self.clock:.1f}:] Customer {customer.id} ({customer.car_type}) left. Charged to {customer.energy_received:.1f}/{customer.energy_needed:.1f} kWh.")
+
+        station.release()
+        self._complete_customer(customer)
+        self._process_queue(station)
+
+
+    def _process_queue(self, station: Station):
+        """
+        Checks the queue and starts charging the next customer if a spot is free
+        """
+        if len(station.waiting_queue) > 0 and station.occupied_spots < station.capacity:
+            next_customer = station.waiting_queue.pop(0)
+            
+            station.occupy()
+            next_customer.station_start_time = self.clock
+
+            charge_rate = station.charger_power_rate if next_customer.car_type == "BEV" else 3.7
+            remaining_need = next_customer.get_remaining_need()
+            charge_duration_hours = remaining_need / charge_rate
+            charge_duration_minutes = charge_duration_hours * 60.0
+            
+            completion_time = self.clock + charge_duration_minutes
+
+            if completion_time < next_customer.departure_time: # charging finished before they leave work
+                self.schedule(Event(time=completion_time, type=EventType.CHARGING, customer=next_customer, station=station))
+                print(f"  -> Customer {next_customer.id} started charging. Will finish at {completion_time:.1f}")
             else:
-                # Blocked, so add to waiting queue of next station
-                customer.blocking_at_station = current_station_name
-                next_station.waiting_queue.append(customer)
-        else:
-            self.stations[current_station_name].release(customer.car_type)
-            self._release_blocked_customers(current_station_name)
+                self.schedule(Event(time=next_customer.departure_time, type=EventType.DEPARTURE, customer=next_customer, station=station))
+                print(f"  -> Customer {next_customer.id} started charging. Will depart partially charged at {next_customer.departure_time:.1f}")
 
-            self._complete_customer(customer)
-    
-    def _release_blocked_customers(self, station_name: str):
-        """
-        Release blocked customers waiting for a station.
-        
-        Processes the waiting queue in order, allowing customers to enter
-        the station as capacity becomes available.
-        
-        :param station_name: Name of the station that has freed up capacity
-        """
-        # TODO
-    
+
     def _complete_customer(self, customer: Customer):
-        """
-        Record final sojourn time and statistics for a completed customer.
-        
-        :param customer: Customer object who has finished all waste disposal
-        """
-        # TODO
+        self.completed_customers.append(customer)
+
+    # ~~~~~~~ RUN METHOD ~~~~~~~
 
     def run(self, duration: float):
         """
-        Run simulation for specified duration with optional improvement parameters.
-        
-        :param duration: total simulation time in minutes
+        Runs the simulation loop.
         """
-        
-        # Schedule first arrival
-        first_arrival_time = self.arrival_dist.sample(0)
+        first_arrival_time = self.arrival_dist.sample(420.0) # = 7:00
         self.schedule(Event(
             time=first_arrival_time,
             type=EventType.ARRIVAL,
             customer=None
         ))
         
-        self.last_queue_record_time = self.clock
+        self.last_energy_record_time = self.clock
         
         while not self.fes.is_empty() and self.clock < duration:
             event = self.fes.next()
-            
             self.clock = event.time
             
             if event.type == EventType.ARRIVAL:
                 self._handle_arrival()
             elif event.type == EventType.CHARGING:
-                self._handle_gate_departure(event)
+                self._handle_charging_complete(event)
             elif event.type == EventType.DEPARTURE:
-                self._handle_station_departure(event)
-
+                self._handle_workplace_departure(event)

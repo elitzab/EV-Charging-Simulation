@@ -9,6 +9,7 @@ class EventType(Enum):
     ARRIVAL = 1         # Customer arrives at charging point
     CHARGING = 2        # Customer begins charging
     DEPARTURE = 3       # Customer leaves the charging point
+    MONITOR = 4         # Periodic sampler for energy + queue statistics
 
 class Event:
     def __init__(self, time, type, customer, station=None):

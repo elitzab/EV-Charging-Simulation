@@ -1,5 +1,3 @@
-import random
-
 class Customer:
     """
     Represents an EV or PHEV arriving at the parking lot
@@ -12,20 +10,17 @@ class Customer:
         self.departure_time = departure_time
 
         self.energy_received = 0.0              # current charge received so far (kWh)
+        self.station = None                     # station they are plugged into
         self.station_start_time = None          # time when they plugged in
         self.station_end_time = None            # time when they unplugged
 
-    def charge(self, max_charger_power: float, duration_minutes: float) -> float:
+    def charge(self, charging_rate: float, duration_minutes: float) -> float:
         """
         Simulates charging the vehicle over a specific duration of time.
         Return: energy added to the battery (kWh).
         """
         if self.is_charging_complete() or duration_minutes <= 0:
             return 0.0
-
-        charging_rate = max_charger_power
-        if self.car_type == "PHEV":
-            charging_rate = min(max_charger_power, 3.7) # PHEVs chargers limited to ~3.7 kW
 
         hours = duration_minutes / 60.0
         possible_energy = charging_rate * hours
@@ -46,4 +41,3 @@ class Customer:
         Return: the remaining energy needed (kWh).
         """
         return max(0.0, self.energy_needed - self.energy_received)
-

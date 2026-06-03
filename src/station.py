@@ -44,9 +44,9 @@ class Station:
         """
         hour = (current_time_minutes / 60.0) % 24
 
-        if 6.0 < hour < 20.0: # = daylight hours
-            sine_value = math.sin(math.pi * (hour - 6.0) / 12.0) # peak at 12:00
-            return self.solar_peak_power * sine_value
+        if 6.0 < hour < 20.0:
+            sine_value = math.sin(math.pi * (hour - 6.0) / 14.0)
+            return max(0.0, self.solar_peak_power * sine_value)
         return 0.0
 
     def grid_demand(self, current_time_minutes: float) -> float:
@@ -63,7 +63,7 @@ class Station:
         Solar is sampled at the interval midpoint
         """
         delta = t1 - t0
-        if delta <= 0: # = incorrect input
+        if delta <= 0 or self.occupied_spots == 0:
             return
 
         mid = 0.5 * (t0 + t1)
@@ -73,6 +73,9 @@ class Station:
         hours = delta / 60.0
         solar_used = min(demand, solar)
         grid_used = max(0.0, demand - solar_used)
+
+        if grid_used < 0 or solar_used < 0:
+            print(f"NEGATIVE: t0={t0:.1f} t1={t1:.1f} demand={demand:.3f} solar={solar:.3f} solar_used={solar_used:.3f} grid_used={grid_used:.3f}")
 
         self.total_solar_generated_kwh += solar_used * hours
         self.total_grid_drawn_kwh += grid_used * hours

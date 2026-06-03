@@ -2,21 +2,23 @@
 Discrete-event simulation of daytime solar-powered EV charging stations at the High Tech Campus Eindhoven. Models a baseline scenario (grid-only chargers) against a start-up scenario (solar-assisted chargers + grid overflow), and compares them across a set of performance metrics.
 
 ## Project Structure
+```
 EV-Charging-Simulation/
-├── data/                          # datasets and output plots
-│   ├── odin_2022.csv              # ODIN 2022 mobility survey (see below)
-│   ├── ODiN2022_Codeboek_v1.0.ods # ODIN codebook
+├── data/
+│   ├── odin_2022.csv                        # ODIN 2022 mobility survey (see below)
+│   ├── ODiN2022_Codeboek_v1.0.ods           # ODIN codebook
 │   ├── 202410DatasetEVOfficeParking_v0.csv  # EV office parking dataset (see below)
-│   ├── energy_distribution.py     # fits and compares distributions to the charging data
-│   └── plot_arrivals.py           # visualises arrival/departure distributions
-└── src/                           # simulation source code
-├── main.py                    # entry point — run this
-├── simulation.py              # discrete-event simulation engine
-├── station.py                 # charging station model
-├── customer.py                # EV/PHEV customer model
-├── event.py                   # event types and priority queue
-├── arrivals.py                # fits arrival rates from ODIN data
-└── extract_energy_distr.py    # fits energy distribution from parking dataset
+│   ├── energy_distribution.py               # fits and compares distributions to the charging data
+│   └── plot_arrivals.py                     # visualises arrival/departure distributions
+└── src/
+    ├── main.py                              # entry point — run this
+    ├── simulation.py                        # discrete-event simulation engine
+    ├── station.py                           # charging station model
+    ├── customer.py                          # EV/PHEV customer model
+    ├── event.py                             # event types and priority queue
+    ├── arrivals.py                          # fits arrival rates from ODIN data
+    └── extract_energy_distr.py              # fits energy distribution from parking dataset
+```
 
 ## Datasets
 Two datasets are required and are not included in this repository.
@@ -66,3 +68,5 @@ All simulation parameters are in the `CONFIG` dict at the top of `src/main.py`:
 | `phev_fraction` | 0.5 | Share of arrivals that are PHEV |
 | `arrival_scale` | 0.1 | Scales ODIN survey counts to this lot's size |
 | `num_replications` | 100 | Number of simulation replications |
+
+The values listed in the second column can be updated to test different scenarios.

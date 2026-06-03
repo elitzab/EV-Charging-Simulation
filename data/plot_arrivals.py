@@ -97,11 +97,11 @@ fig.suptitle("Workplace Arrival and Departure Analysis (Noord-Brabant)",
 ax = axes[0]
 counts_obs, _, patches = ax.hist(
     all_arr['arrival_min'], bins=bins,
-    color='#5B8DB8', alpha=0.75, label=f'Observed arrivals (n={len(all_arr)})'
+    color='#5B8DB8', alpha=0.75, label=f'Observed arrivals'
 )
 sim_counts, _ = np.histogram(sim_times, bins=bins)
 ax.stairs(sim_counts / N_SIM_DAYS, bins, color="#ffb700",
-          linewidth=2, label='Simulated arrivals (1-day avg)')
+          linewidth=2, label='Simulated arrivals')
 
 total_observed = len(all_arr)
 total_sim_per_day = sum(r['rate'] * (r['end'] - r['start']) for r in arrival_rates)

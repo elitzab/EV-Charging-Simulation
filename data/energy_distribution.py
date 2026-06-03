@@ -1,10 +1,12 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 
 from scipy.stats import norm, gamma, lognorm, weibull_min, kstest
 
-df = pd.read_csv("./datasets/202410DatasetEVOfficeParking_v0.csv", sep=";")
+script_dir = os.path.dirname(os.path.abspath(__file__))
+df = pd.read_csv(os.path.join(script_dir, '202410DatasetEVOfficeParking_v0.csv'), sep=";")
 
 energy = df["total_energy"]
 
@@ -47,7 +49,11 @@ plt.xlabel("Energy used per charging session (kWh)")
 plt.ylabel("Density")
 plt.title("Fitted distributions")
 plt.legend()
-plt.show()
+
+out_path = os.path.join(script_dir, 'energy_distribution_plot.png')
+plt.savefig(out_path, dpi=150, bbox_inches='tight')
+plt.close()
+print(f"Plot saved to: {out_path}")
 
 best_dist = None
 best_stat = np.inf

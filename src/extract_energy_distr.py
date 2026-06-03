@@ -1,3 +1,7 @@
+"""
+Run this file to get the parameters of the distribution, used in the simulation, of the 
+energy charged by vehicles. (Lognormal based on data/energy_distribution.py analyis)
+"""
 import os
 import random
 import pandas as pd

@@ -1,3 +1,6 @@
+"""
+(Run main.py to get results)
+"""
 import random
 from collections import deque
 

@@ -1,7 +1,9 @@
 """
-Run this 
+Run this.
+Outputs:
+    - A comparison between the baseline and startup scenario
+    - Additional plots that can be found in the data/ folder 
 """
-
 import random
 import math
 

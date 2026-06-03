@@ -1,3 +1,10 @@
+"""
+Run to get a .png file showing the arrival and departure distributions.
+Outputs: 
+    - number of BEV and PHEV in the dataset (restricted to Noord-Braabant).
+
+! dataset odin_2022.csv needed (see README.md)
+"""
 import os
 import numpy as np
 import pandas as pd

@@ -1,3 +1,10 @@
+"""
+Run to get a .png file showing the requested-energy distribution.
+Outputs:
+    - parameters for different distribution fits + their scores.
+
+! dataset 202410DatasetEVOfficeParking_v0.csv needed (see README.md)
+"""
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt

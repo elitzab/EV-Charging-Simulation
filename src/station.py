@@ -4,12 +4,14 @@ class Station:
     """
     Represents a cluster of charging points.
     """
-    def __init__(self, name, station_type="solar", capacity=2, panels=14, panel_peak_kw=0.4, 
-                 charger_power_rate=11.0, op_start=0.0, op_end=1440.0):
+    def __init__(self, name, station_type="solar", capacity=2, panels=14, panel_peak_kw=0.4,
+             charger_power_rate=11.0, op_start=0.0, op_end=1440.0, solar_profile=None):
         self.name = name
         self.station_type = station_type    # "solar" or "grid"
         self.capacity = capacity            # number of charging spots
         self.occupied_spots = 0             # current spots occupied
+        self.panels = panels
+        self.solar_profile = solar_profile
 
         self.solar_peak_power = panels * panel_peak_kw if station_type == "solar" else 0.0
         self.charger_power_rate = charger_power_rate
@@ -38,15 +40,12 @@ class Station:
         return self.occupied_spots < self.capacity
 
     def get_solar_power(self, current_time_minutes: float) -> float:
-        """
-        Calculates the solar power generation (kW) 
-        using a sine wave peaking at 12:00.
-        """
-        hour = (current_time_minutes / 60.0) % 24
+        if self.station_type != "solar":
+         return 0.0
 
-        if 6.0 < hour < 20.0:
-            sine_value = math.sin(math.pi * (hour - 6.0) / 14.0)
-            return max(0.0, self.solar_peak_power * sine_value)
+        if self.solar_profile is not None:
+         return self.solar_profile.get_power_kw(current_time_minutes)
+
         return 0.0
 
     def grid_demand(self, current_time_minutes: float) -> float:
@@ -94,3 +93,6 @@ class Station:
         window = self.op_end - self.op_start
         denom = self.capacity * window
         return self.occupied_spot_minutes / denom if denom > 0 else 0.0
+    
+   
+    

@@ -11,15 +11,17 @@ from station import Station
 from simulation import Simulation
 from arrivals import load_and_fit
 from extract_energy_distr import EnergyDistribution
+from solar_profile import SolarProfile
 import results
 
 # TOGGLES:
 CONFIG = {
     'num_grid_spots':       5,      # existing grid-only chargers
     'num_solar_spots':      2,      # solar-assisted chargers added by the start-up
-    'num_solar_panels':     14,     # panels feeding the solar spots
+    'num_solar_panels':     60,     # panels feeding the solar spots
+    'season':             'summer', # time of the year
     'panel_peak_kw':        0.4,    # peak output per panel
-    'charger_power_rate':   11.0,   # kW per active charger
+    'charger_power_rate':   13.47,  # kW per active charger
     'phev_max_charge_kw':   3.7,    # PHEV onboard-charger caP
     'phev_fraction':        0.5,    # share of arrivals that are PHEV
     'arrival_scale':        0.1,    # scales Noord-Brabant counts to this lot
@@ -63,17 +65,22 @@ def build_stations(scenario, config):
     stations = []
 
     if scenario == "Start-up":
+        solar_profile = SolarProfile(
+            season=config["season"],
+            num_panels=config["num_solar_panels"]
+        )
+
         stations.append(Station(
-            "Solar_Station", station_type="solar",
-            capacity=config['num_solar_spots'], panels=config['num_solar_panels'],
-            panel_peak_kw=config['panel_peak_kw'], charger_power_rate=config['charger_power_rate'],
-            op_start=op_start, op_end=op_end))
+            "Solar_Station", station_type="solar", capacity=config['num_solar_spots'], 
+            panels=config['num_solar_panels'], panel_peak_kw=config['panel_peak_kw'], charger_power_rate=config['charger_power_rate'],
+            op_start=op_start, op_end=op_end,solar_profile=solar_profile
+        ))
 
     stations.append(Station(
-        "Grid_Station", station_type="grid",
-        capacity=config['num_grid_spots'], panels=0,
-        charger_power_rate=config['charger_power_rate'],
-        op_start=op_start, op_end=op_end))
+        "Grid_Station",
+        station_type="grid", capacity=config['num_grid_spots'], panels=0,
+        charger_power_rate=config['charger_power_rate'], op_start=op_start, op_end=op_end
+    ))
 
     return stations
 

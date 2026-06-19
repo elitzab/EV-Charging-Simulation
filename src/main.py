@@ -19,7 +19,7 @@ import results
 CONFIG = {
     'num_grid_spots':           4,          # existing grid-only chargers
     'num_solar_spots':          4,          # solar-assisted chargers added by the start-up
-    'num_solar_panels':         140,        # panels feeding the solar spots
+    'num_solar_panels':         210,        # panels feeding the solar spots
     'season':                   'summer',   # time of the year
     'panel_peak_kw':            0.4,        # peak output per panel
     'charger_power_rate':       11,         # kW per active charger

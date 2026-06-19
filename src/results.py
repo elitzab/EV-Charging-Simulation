@@ -106,7 +106,7 @@ def plot_all(startup_history, startup_stations, baseline_history, baseline, star
  
     ax.set_xticks(list(x))
     ax.set_xticklabels([label for _, label in headline], fontsize=10)
-    ax.set_title('Optimal vs Realistic Grid-only Set-up KPI comparison (mean ± 95% CI)', fontsize=14, weight='bold')
+    ax.set_title('Grid-only vs Startup KPI comparison (mean ± 95% CI)', fontsize=14, weight='bold')
     ax.legend()
     ax.grid(axis='y', alpha=0.3)
     ax.spines['top'].set_visible(False)

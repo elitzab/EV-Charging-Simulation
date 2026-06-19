@@ -62,18 +62,27 @@ python energy_distribution.py
 You might need to run `src/extract_solar_profile.py` before running `src/main.py`.
 
 ## Configuration
+## Configuration
 All simulation parameters are in the `CONFIG` dict at the top of `src/main.py`:
 
 | Parameter | Default | Description |
 |---|---|---|
-| `num_grid_spots` | 5 | Existing grid-only chargers (placeholder) |
-| `num_solar_spots` | 2 | Solar chargers added by the start-up |
-| `num_solar_panels` | 14 | Panels feeding the solar spots |
+| `num_grid_spots` | 4 | Existing grid-only chargers |
+| `num_solar_spots` | 4 | Solar chargers added by the start-up |
+| `num_solar_panels` | 210 | Panels feeding the solar spots |
+| `season` | `'summer'` | Season used for the solar generation profile (`'winter'`, `'spring'`, `'summer'`, `'autumn'`) |
 | `panel_peak_kw` | 0.4 | Peak output per panel (kW) |
-| `charger_power_rate` | 11.0 | Power per active charger (kW) |
-| `phev_max_charge_kw` | 3.7 | PHEV onboard charger cap (kW) |
-| `phev_fraction` | 0.5 | Share of arrivals that are PHEV |
-| `arrival_scale` | 0.1 | Scales ODIN survey counts to this lot's size |
+| `charger_power_rate` | 11 | Power per active charger (kW) |
+| `phev_max_charge_kw` | 5.7 | PHEV onboard charger cap (kW) |
+| `phev_fraction` | 0.38 | Share of arrivals that are PHEV |
+| `arrival_scale` | 0.115 | Scales ODIN survey counts to this lot's size |
+| `battery_capacity_kwh` | 1000.0 | Battery storage capacity (kWh); `0.0` disables the battery |
+| `COMPARISON` | `("Baseline", "Solar-only")` | Pair of scenarios to compare: `"Baseline"` (grid-only spots), `"Start-up"` (grid + solar spots), or `"Solar-only"` (solar spots only) |
+| `sim_start_min` | 390 | Simulation start time (06:30, in minutes since midnight) |
+| `arrival_cutoff_min` | 1110 | No new arrivals scheduled after this time (18:30) |
+| `monitor_interval_min` | 10 | Interval between energy/queue snapshots (minutes) |
+| `monitor_end_min` | 1320 | End of the monitoring window (22:00) |
 | `num_replications` | 100 | Number of simulation replications |
+| `random_seed` | 42 | Base random seed (offset per replication) |
 
 The values listed in the second column can be updated to test different scenarios.

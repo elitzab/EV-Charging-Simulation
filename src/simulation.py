@@ -52,7 +52,7 @@ class Simulation:
         energy_needed = self.energy_dist.sample(car_type)
 
         work_duration = self.work_duration_dist.sample()
-        departure_time = self.clock + work_duration
+        departure_time = min(self.clock + work_duration, self.config['monitor_end_min'])
 
         return Customer(
             cust_id=self.total_customers,
@@ -263,6 +263,7 @@ class Simulation:
 
         total_solar = sum(s.total_solar_generated_kwh for s in self.stations)
         total_grid = sum(s.total_grid_drawn_kwh for s in self.stations)
+        total_battery = sum(s.total_battery_discharged_kwh for s in self.stations)
         grid_at_solar = sum(s.total_grid_drawn_kwh for s in solar_stations)
         grid_at_grid = sum(s.total_grid_drawn_kwh for s in grid_stations)
         delivered_by_solar_stations = sum(s.total_solar_generated_kwh + s.total_grid_drawn_kwh
@@ -285,8 +286,10 @@ class Simulation:
             'total_grid_kwh':       total_grid,
             'grid_kwh_solar_stns':  grid_at_solar,
             'grid_kwh_grid_stns':   grid_at_grid,
-            'total_delivered_kwh':  total_solar + total_grid,
-            'solar_station_kwh':    delivered_by_solar_stations,
+            'total_delivered_kwh':  total_solar + total_grid + total_battery,
+            'solar_station_kwh':    sum(s.total_solar_generated_kwh + s.total_grid_drawn_kwh 
+                            + s.total_battery_discharged_kwh for s in solar_stations),
+            'total_battery_kwh':    total_battery,
             'peak_grid_kw':         self.peak_grid_kw,
             'util_solar':           util(solar_stations),
             'util_grid':            util(grid_stations),

@@ -26,12 +26,16 @@ Two datasets are required and are not included in this repository.
 **ODIN 2022 (Dutch National Travel Survey)**
 Used to fit arrival times and work durations.
 - Place as: `data/odin_2022.csv`
-- Available at: [TODO: add download link]
+- Available at: (https://ssh.datastations.nl/dataset.xhtml?persistentId=doi:10.17026/SS/BXIK2X)
 
 **EV Office Parking Dataset**
 Used to fit the distribution of energy needed per charging session.
 - Place as: `data/202410DatasetEVOfficeParking_v0.csv`
-- Available at: [TODO: add download link]
+- Available at: (https://ev-database.org/cheatsheet/useable-battery-capacity-electric-car) but also included in the .zip file
+
+**Solar Energy Production**
+Used for the generation of solar power per hour.
+- Place as: `data/avg_hourly_all_panels_combined.csv` but also included in the .zip file
 
 ## How to Run
 
@@ -53,6 +57,9 @@ python plot_arrivals.py
 cd data
 python energy_distribution.py
 ```
+
+**Troubleshooting**
+You might need to run `src/extract_solar_profile.py` before running `src/main.py`.
 
 ## Configuration
 All simulation parameters are in the `CONFIG` dict at the top of `src/main.py`:

@@ -20,12 +20,11 @@ def month_to_season(month):
 
 df = pd.read_csv(input_path)
 
-# getting the solar output for one panel
+# solar output for one panel
 df["W_per_panel"] = df["avg_W_7panels"] / 7
 
 df["season"] = df["month"].apply(month_to_season)
 
-# averaging over all days in the same season and hour
 seasonal = (
     df.groupby(["season", "hour"])["W_per_panel"]
     .mean()

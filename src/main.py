@@ -1,5 +1,6 @@
 """
-Run this.
+Run this. See README.md for information on how to correctly set up the files
+so that the simulation runs.
 Outputs:
     - A comparison between the baseline and startup scenario
     - Additional plots that can be found in the data/ folder 
@@ -16,23 +17,30 @@ import results
 
 # TOGGLES:
 CONFIG = {
-    'num_grid_spots':       5,      # existing grid-only chargers
-    'num_solar_spots':      2,      # solar-assisted chargers added by the start-up
-    'num_solar_panels':     60,     # panels feeding the solar spots
-    'season':             'summer', # time of the year
-    'panel_peak_kw':        0.4,    # peak output per panel
-    'charger_power_rate':   13.47,  # kW per active charger
-    'phev_max_charge_kw':   3.7,    # PHEV onboard-charger caP
-    'phev_fraction':        0.5,    # share of arrivals that are PHEV
-    'arrival_scale':        0.1,    # scales Noord-Brabant counts to this lot
+    'num_grid_spots':           4,          # existing grid-only chargers
+    'num_solar_spots':          4,          # solar-assisted chargers added by the start-up
+    'num_solar_panels':         140,        # panels feeding the solar spots
+    'season':                   'summer',   # time of the year
+    'panel_peak_kw':            0.4,        # peak output per panel
+    'charger_power_rate':       11,         # kW per active charger
+    'phev_max_charge_kw':       5.7,        # PHEV onboard-charger cap
+    'phev_fraction':            0.38,       # share of arrivals that are PHEV
+    'arrival_scale':            0.115,      # scales Noord-Brabant counts to this lot
+    'battery_capacity_kwh':     1000.0,     # kWh of battery storage
 
-    'sim_start_min':        390,    # simulation start = 06:30
-    'arrival_cutoff_min':   1110,   # arrival cutoff = 18:30
-    'monitor_interval_min': 10,     # snapshots step
-    'monitor_end_min':      1320,   # end of the monitoring window = 22:00
+    # configuration of test:
+    # "Baseline"    = uses grid-only spots
+    # "Start-up"    = uses grid-only + solar spots
+    # "Solar-only"  = uses solar spots only
+    'COMPARISON':               ("Baseline", "Solar-only"),
 
-    'num_replications':     100,
-    'random_seed':          42,
+    'sim_start_min':            390,        # simulation start = 06:30
+    'arrival_cutoff_min':       1110,       # arrival cutoff = 18:30
+    'monitor_interval_min':     10,         # snapshots step
+    'monitor_end_min':          1320,       # end of the monitoring window = 22:00
+
+    'num_replications':         100,
+    'random_seed':              42,
 }
 
 class WorkDurationDist:
@@ -41,12 +49,15 @@ class WorkDurationDist:
         self.std = std
         self.min_minutes = min_minutes
     def sample(self):
-        return max(self.min_minutes, random.normalvariate(self.mean, self.std))
+        while True:
+            val = random.normalvariate(self.mean, self.std)
+            if 60.0 <= val <= 720.0:
+                return val
 
 class ExponentialDist:
     def __init__(self, rates, scale=1.0):
-        self.rates = rates      # list of {window, start_min, end_min, rate}
-        self.scale = scale      # scales survey counts down to this lot's size
+        self.rates = rates
+        self.scale = scale
     def sample(self, clock):
         rate_info = self.rates[-1]
         for r in self.rates:
@@ -58,36 +69,37 @@ class ExponentialDist:
 
 def build_stations(scenario, config):
     """
-    Baseline:  X grid-only spots
-    Start-up:  Y solar spots (filled first) + X grid spots as overflow
+    Baseline:   X grid-only spots
+    Start-up:   Y solar spots (filled first) + X grid spots as overflow
+    Solar-only: Y solar spots only
     """
     op_start, op_end = config['sim_start_min'], config['monitor_end_min']
     stations = []
 
-    if scenario == "Start-up":
-        solar_profile = SolarProfile(
-            season=config["season"],
-            num_panels=config["num_solar_panels"]
-        )
-
+    if scenario in ("Start-up", "Solar-only"):
+        solar_profile = SolarProfile(season=config["season"], num_panels=config["num_solar_panels"])
         stations.append(Station(
-            "Solar_Station", station_type="solar", capacity=config['num_solar_spots'], 
-            panels=config['num_solar_panels'], panel_peak_kw=config['panel_peak_kw'], charger_power_rate=config['charger_power_rate'],
-            op_start=op_start, op_end=op_end,solar_profile=solar_profile
+            "Solar_Station", station_type="solar",
+            capacity=config['num_solar_spots'], panels=config['num_solar_panels'],
+            panel_peak_kw=config['panel_peak_kw'], charger_power_rate=config['charger_power_rate'],
+            op_start=op_start, op_end=op_end, solar_profile=solar_profile,
+            battery_capacity_kwh=config['battery_capacity_kwh']
         ))
 
-    stations.append(Station(
-        "Grid_Station",
-        station_type="grid", capacity=config['num_grid_spots'], panels=0,
-        charger_power_rate=config['charger_power_rate'], op_start=op_start, op_end=op_end
-    ))
+    if scenario in ("Start-up", "Baseline"):
+        stations.append(Station(
+            "Grid_Station", station_type="grid",
+            capacity=config['num_grid_spots'], panels=0,
+            charger_power_rate=config['charger_power_rate'],
+            op_start=op_start, op_end=op_end
+        ))
 
     return stations
 
 
 def confidence_interval(values):
     """
-    Return: (mean, half_width) for a 95% CI
+    # Return: (mean, half-width) for a 95% CI
     """
     n = len(values)
     mean = sum(values) / n
@@ -120,10 +132,9 @@ def run_experiment(scenario, config, num_repl):
         sim.run()
         per_repl.append(sim.compute_metrics())
         if i == 0:
-            sample_history = sim.history        # one run's time series for plotting
-            sample_stations = sim.stations      # one run's stations for hourly bins
+            sample_history = sim.history
+            sample_stations = sim.stations
 
-    # aggregate every metric into mean +/- 95% CI half-width
     aggregated = {}
     for key in per_repl[0]:
         aggregated[key] = confidence_interval([r[key] for r in per_repl])
@@ -132,8 +143,9 @@ def run_experiment(scenario, config, num_repl):
 
 if __name__ == "__main__":
     n = CONFIG['num_replications']
-    baseline, base_hist, base_stns = run_experiment("Baseline", CONFIG, num_repl=n)
-    startup, start_hist, start_stns = run_experiment("Start-up", CONFIG, num_repl=n)
+    scenario_a, scenario_b = CONFIG['COMPARISON']
+    result_a, hist_a, stns_a = run_experiment(scenario_a, CONFIG, num_repl=n)
+    result_b, hist_b, stns_b = run_experiment(scenario_b, CONFIG, num_repl=n)
 
-    results.print_comparison(baseline, startup, CONFIG)
-    results.plot_all(start_hist, start_stns, base_hist, baseline, startup)
+    results.print_comparison(result_a, result_b, CONFIG)
+    results.plot_all(hist_b, stns_b, hist_a, result_a, result_b, scenario_b)

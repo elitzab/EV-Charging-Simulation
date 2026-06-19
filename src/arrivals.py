@@ -5,8 +5,8 @@ from scipy import stats
 
 """
 Reads the ODIN 2022 mobility survey and fits distributions for:
-   - inter-arrival times (three time windows)
-   - work duration (lognormal)
+   - inter-arrival times
+   - work duration
 """
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -16,8 +16,8 @@ csv_path = os.path.join(script_dir, '..', 'data', 'odin_2022.csv')
 def load_and_fit(verbose=False):
     """
     Return: a dict with fitted distribution parameters:
-        arrival_rates - list of dicts {window, start_min, end_min, rate (arrivals/min)}
-        work_duration - dict {mean_min, std_min} (normal fit on departure - arrival)
+        arrival_rates - list of dicts {window, start_min, end_min, rate}
+        work_duration - dict {mean_min, std_min} (normal fit on departure-arrival)
     """
     df = pd.read_csv(csv_path, sep=';', low_memory=False, encoding='latin1')
 
@@ -56,9 +56,14 @@ def load_and_fit(verbose=False):
     #   09:15–18:30  (clock 195 – 720) late
     SIM_START = 6 * 60 + 30   # 06:30
     windows = [
-        (SIM_START,          SIM_START + 75,   "early"),
-        (SIM_START + 75,     SIM_START + 195,  "peak"),
-        (SIM_START + 195,    SIM_START + 720,  "tail"),
+        (SIM_START,         SIM_START + 45,     "early"),
+        (SIM_START + 45,    SIM_START + 75,     "earlyish" ),
+        (SIM_START + 75,    SIM_START + 135,    "peak" ),
+        (SIM_START + 135,   SIM_START + 165,    "latish" ),
+        (SIM_START + 165,   SIM_START + 225,    "late"),
+        (SIM_START + 225,   SIM_START + 720,    "tail")
+        # (SIM_START + 75,     SIM_START + 195,  "peak"),
+        # (SIM_START + 195,    SIM_START + 720,  "tail"),
     ]
 
     arrival_rates = []

@@ -1,7 +1,9 @@
 """
-Run to get a .png file showing the arrival and departure distributions.
-Outputs: 
-    - number of BEV and PHEV in the dataset (restricted to Noord-Braabant).
+Run to get .png files showing the arrival and departure distributions.
+Outputs:
+    - arrivals_model_plot.png: observed vs piecewise Poisson model
+    - arrivals_vs_departures_plot.png: arrivals vs departures comparison
+    - number of BEV and PHEV in the dataset (restricted to Noord-Brabant)
 
 ! dataset odin_2022.csv needed (see README.md)
 """
@@ -31,7 +33,7 @@ all_arr = all_arr.dropna(subset=['AankUur', 'AankMin'])
 all_arr['arrival_min'] = all_arr['AankUur'] * 60 + all_arr['AankMin']
 
 # BrandstofEPa1 == 1 (fully electric), == 2 (hybrid)
-ev_arr = all_arr[all_arr['BrandstofEPa1'].isin([1, 2])].copy()
+ev_arr   = all_arr[all_arr['BrandstofEPa1'].isin([1, 2])].copy()
 bev_arr  = all_arr[all_arr['BrandstofEPa1'] == 1].copy()
 phev_arr = all_arr[all_arr['BrandstofEPa1'] == 2].copy()
 
@@ -49,9 +51,14 @@ print(f"    PHEV (plug-in hybrid):  {len(phev_arr)}")
 # Fit
 SIM_START = 390   # 06:30 in minutes since midnight
 windows = [
-    (SIM_START,        SIM_START + 45,  "early\n06:30–07:15",  "#4C9BE8"),
-    (SIM_START + 45,   SIM_START + 165, "peak\n07:15–9:15",   "#E8854C"),
-    (SIM_START + 165,  SIM_START + 720, "tail\n9:15–18:30",   "#6DBE6D"),
+    (SIM_START,         SIM_START + 45,  "early\n06:30–07:15",  "#6C9536"),
+    (SIM_START + 45,    SIM_START + 75, "\n07:15-07:45", "#8D9536" ),
+    (SIM_START + 75,    SIM_START + 135, "peak\n07:45-08:45", "#DFA323" ),
+    (SIM_START + 135,   SIM_START + 165, "\n08:45-09:15", "#A55279" ),
+    (SIM_START + 165,   SIM_START + 225, "late\n09:15–10:15",  "#573377"),
+    (SIM_START + 225,   SIM_START + 720, "tail\n10:15–18:30",  "#334F77")
+    # (SIM_START + 45,    SIM_START + 165, "peak\n07:15–09:15",  "#DFA323"),
+    # (SIM_START + 165,   SIM_START + 720, "tail\n09:15–18:30",  "#334F77"),
 ]
 
 # compute rates
@@ -86,92 +93,146 @@ def simulate_arrivals(rates, n_days, scale=1.0):
 
 sim_times = simulate_arrivals(arrival_rates, N_SIM_DAYS)
 
-# plot
-BIN_WIDTH = 15   # minutes per histogram bin
-bins = np.arange(300, 1140 + BIN_WIDTH, BIN_WIDTH)   # 05:00 – 19:00
+# shared settings
+BIN_WIDTH = 15
+bins = np.arange(300, 1140 + BIN_WIDTH, BIN_WIDTH)
 
 def min_to_label(m):
     return f"{int(m//60):02d}:{int(m%60):02d}"
 
-x_ticks     = np.arange(300, 1141, 60)
+x_ticks      = np.arange(300, 1141, 60)
 x_ticklabels = [min_to_label(m) for m in x_ticks]
 
-fig, axes = plt.subplots(2, 1, figsize=(12, 13))
-fig.suptitle("Workplace Arrival and Departure Analysis (Noord-Brabant)",
-             fontsize=14, fontweight='bold', y=0.98)
 
-# Arrivals + piecewise model
-ax = axes[0]
+# PLOT: Arrivals vs Piecewise Poisson Model
+fig, ax = plt.subplots(figsize=(12, 6))
+
 counts_obs, _, patches = ax.hist(
     all_arr['arrival_min'], bins=bins,
-    color='#5B8DB8', alpha=0.75, label=f'Observed arrivals'
+    color="#7BB350", alpha=0.75, label='Observed arrivals'
 )
 sim_counts, _ = np.histogram(sim_times, bins=bins)
-ax.stairs(sim_counts / N_SIM_DAYS, bins, color="#ffb700",
+ax.stairs(sim_counts / N_SIM_DAYS, bins, color="#000000",
           linewidth=2, label='Simulated arrivals')
 
-total_observed = len(all_arr)
+total_observed   = len(all_arr)
 total_sim_per_day = sum(r['rate'] * (r['end'] - r['start']) for r in arrival_rates)
 
+y_max = counts_obs.max()
+
 for r in arrival_rates:
-    xs = np.arange(r['start'], r['end'] + BIN_WIDTH, BIN_WIDTH)
-    expected_per_bin = r['rate'] * BIN_WIDTH * (total_observed / total_sim_per_day)
-    ax.hlines(expected_per_bin, r['start'], r['end'],
-              colors=r['color'], linewidths=2.5, linestyles='--')
+    expected_per_bin = r['rate'] * BIN_WIDTH
+    # ax.hlines(expected_per_bin, r['start'], r['end'],
+    #           colors=r['color'], linewidths=2.5, linestyles='--')
     ax.axvspan(r['start'], r['end'], alpha=0.08, color=r['color'])
     mid = (r['start'] + r['end']) / 2
-    ax.text(mid, ax.get_ylim()[1] if ax.get_ylim()[1] > 0 else 10,
-            r['label'].split('\n')[0], ha='center', va='bottom',
-            fontsize=8, color=r['color'], fontweight='bold')
+
+    ax.text(mid, y_max * 0.92, r['label'].split('\n')[0],
+            ha='center', va='top', fontsize=10, color=r['color'], fontweight='bold')
 
 for w_start, w_end, _, color in windows:
     ax.axvline(w_start, color=color, linewidth=1, linestyle=':')
 ax.axvline(windows[-1][1], color=windows[-1][3], linewidth=1, linestyle=':')
 
-ax.set_xlim(300, 1140)
-ax.set_xticks(x_ticks); ax.set_xticklabels(x_ticklabels, fontsize=8)
-ax.set_ylabel("# trips per 15-min bin")
-ax.set_title("Arrivals: Observed vs Piecewise Poisson Model ", fontsize=11)
-ax.legend(fontsize=9)
-
 # rate annotations
-for r in arrival_rates:
+for i, r in enumerate(arrival_rates):
     mid = (r['start'] + r['end']) / 2
-    ax.text(mid, 2, f"λ={r['rate']:.2f}/min\n(1 per {1/r['rate']:.1f} min)",
+    y_pos = 6 if (i == 1 or i == 3) else 2
+    ax.text(mid, y_pos, f"λ={r['rate']:.2f}/min",
             ha='center', va='bottom', fontsize=7.5, color=r['color'],
             bbox=dict(boxstyle='round,pad=0.2', fc='white', alpha=0.7))
 
+ax.set_xlim(300, 1140)
+ax.set_xticks(x_ticks)
+ax.set_xticklabels(x_ticklabels)
+ax.tick_params(axis='both', labelsize=11)
+ax.set_ylabel("Number of trips (per 15-min bin)", size = 12)
+ax.set_title("Arrivals: Observed vs Piecewise Poisson Model", fontsize=14, pad=12, weight = 'bold')
+ax.legend(fontsize=11)
+ax.grid(axis='y', alpha=0.3)
+ax.spines['top'].set_visible(False)
+ax.spines['right'].set_visible(False)
 
-# Arrivals vs Departures comparison
-ax = axes[1]
-ax.hist(all_arr['arrival_min'],  bins=bins, color='#2E86AB', alpha=0.7,
+fig.tight_layout()
+out1 = os.path.join(script_dir, '4.1 - poisson arrivals.png')
+fig.savefig(out1, dpi=150, bbox_inches='tight')
+plt.close(fig)
+print(f"Saved: {out1}")
+
+
+# PLOT: Arrivals vs Departures
+fig, ax = plt.subplots(figsize=(12, 6))
+
+ax.hist(all_arr['arrival_min'],   bins=bins, color="#7BB350", alpha=0.7,
         label=f'Arrivals at work (n={len(all_arr)})')
-ax.hist(all_dep['departure_min'], bins=bins, color='#E84C4C', alpha=0.7,
+ax.hist(all_dep['departure_min'], bins=bins, color='#2C4688', alpha=0.7,
         label=f'Departures from work (n={len(all_dep)})')
 
 mean_arr = all_arr['arrival_min'].mean()
 mean_dep = all_dep['departure_min'].mean()
-ax.axvline(mean_arr, color='#2E86AB', linewidth=2, linestyle='--',
+ax.axvline(mean_arr, color="#81B35C", linewidth=2, linestyle='--',
            label=f'Mean arrival {min_to_label(mean_arr)}')
-ax.axvline(mean_dep, color='#E84C4C', linewidth=2, linestyle='--',
+ax.axvline(mean_dep, color="#264084", linewidth=2, linestyle='--',
            label=f'Mean departure {min_to_label(mean_dep)}')
 
 ax.set_xlim(300, 1200)
 x_ticks2 = np.arange(300, 1201, 60)
 ax.set_xticks(x_ticks2)
-ax.set_xticklabels([min_to_label(m) for m in x_ticks2], fontsize=8)
-ax.set_ylabel("# trips per 15-min bin")
-ax.set_title("Arrivals vs Departures", fontsize=11)
+ax.set_xticklabels([min_to_label(m) for m in x_ticks2], fontsize=11)
+ax.set_ylabel("Number of trips (per 15-min bin)", size=12)
+ax.set_title("Arrivals vs Departures", fontsize=14, pad=12, weight='bold')
 ax.legend(fontsize=9)
+ax.grid(axis='y', alpha=0.3)
+ax.spines['top'].set_visible(False)
+ax.spines['right'].set_visible(False)
 
-# final formatting
-for ax in axes:
-    ax.grid(axis='y', alpha=0.3)
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
+fig.tight_layout()
+out2 = os.path.join(script_dir, '4.1 - worktime.png')
+fig.savefig(out2, dpi=150, bbox_inches='tight')
+plt.close(fig)
+print(f"Saved: {out2}")
 
-plt.tight_layout(rect=[0, 0, 1, 0.97])
-out_path = os.path.join(script_dir, 'arrivals_plot.png')
-plt.savefig(out_path, dpi=150, bbox_inches='tight')
-print(f"\nPlot saved to: {out_path}")
-plt.close()
+
+# PLOT: Work duration distribution 
+import sys
+sys.path.append(os.path.join(script_dir, '..', 'src'))
+from arrivals import load_and_fit
+from arrivals import load_and_fit
+from scipy.stats import norm
+
+fit  = load_and_fit()
+mean = fit['work_duration']['mean_min']
+std  = fit['work_duration']['std_min']
+
+def sample_duration(mean, std):
+    while True:
+        val = random.normalvariate(mean, std)
+        if 60.0 <= val <= 930.0:
+            return val
+
+samples = [sample_duration(mean, std) for _ in range(10000)]
+
+fig, ax = plt.subplots(figsize=(9, 4.5))
+ax.hist(samples, bins=60, density=True, color="#4B8BA7", alpha=0.75,
+        label='Simulated work durations (n=10,000)')
+
+x = np.linspace(max(60, mean - 3*std), mean + 3*std, 300)
+ax.plot(x, norm.pdf(x, mean, std), color="#0C2942", linewidth=2,
+        label=f'Normal fit (μ={mean:.0f} min, σ={std:.0f} min)')
+ax.axvline(mean, color='#0C2942', linewidth=1.5, linestyle='--',
+           label=f'Mean = {mean:.0f} min ({mean/60:.1f} h)')
+
+ax.set_xlim(0, 960)
+ax.set_xlabel('Work duration (minutes)', size=12)
+ax.set_ylabel('Density', size=12)
+ax.set_title('Simulated work day durations', fontsize=14, weight = 'bold')
+ax.legend(fontsize=9)
+ax.grid(axis='y', alpha=0.3)
+ax.spines['top'].set_visible(False)
+ax.spines['right'].set_visible(False)
+
+fig.tight_layout()
+out3 = os.path.join(script_dir, '4.1 - duration.png')
+fig.savefig(out3, dpi=150, bbox_inches='tight')
+plt.close(fig)
+print(f"Saved: {out3}")

@@ -5,7 +5,8 @@ class Station:
     Represents a cluster of charging points.
     """
     def __init__(self, name, station_type="solar", capacity=2, panels=14, panel_peak_kw=0.4,
-             charger_power_rate=11.0, op_start=0.0, op_end=1440.0, solar_profile=None):
+             charger_power_rate=11.0, op_start=0.0, op_end=1440.0, solar_profile=None,
+             battery_capacity_kwh=0.0):
         self.name = name
         self.station_type = station_type    # "solar" or "grid"
         self.capacity = capacity            # number of charging spots
@@ -16,14 +17,18 @@ class Station:
         self.solar_peak_power = panels * panel_peak_kw if station_type == "solar" else 0.0
         self.charger_power_rate = charger_power_rate
 
+        self.battery_capacity_kwh = battery_capacity_kwh
+        self.battery_charge_kwh = 0.0
+
         self.total_solar_generated_kwh = 0.0
         self.total_grid_drawn_kwh = 0.0
+        self.total_battery_discharged_kwh = 0.0
 
         # statistics
-        self.op_start = op_start            # operating window
+        self.op_start = op_start
         self.op_end = op_end
-        self.occupied_spot_minutes = 0.0    # total time spots are occupied (e.g. 2*30 + 1*60)
-        self.hourly_solar_kwh = [0.0] * 24  # energy split per hour of day
+        self.occupied_spot_minutes = 0.0
+        self.hourly_solar_kwh = [0.0] * 24
         self.hourly_grid_kwh = [0.0] * 24
 
     def occupy(self):
@@ -41,16 +46,14 @@ class Station:
 
     def get_solar_power(self, current_time_minutes: float) -> float:
         if self.station_type != "solar":
-         return 0.0
-
+            return 0.0
         if self.solar_profile is not None:
-         return self.solar_profile.get_power_kw(current_time_minutes)
-
+            return self.solar_profile.get_power_kw(current_time_minutes)
         return 0.0
 
     def grid_demand(self, current_time_minutes: float) -> float:
         """
-        Grid draw (kW)
+        Grid draw (kW): demand not covered by solar or battery.
         """
         demand = self.occupied_spots * self.charger_power_rate
         solar = self.get_solar_power(current_time_minutes)
@@ -58,26 +61,50 @@ class Station:
 
     def calculate_energy_draw(self, t0: float, t1: float):
         """
-        Updates the total energy drawn (kWh) from solar vs grid over [t0, t1].
-        Solar is sampled at the interval midpoint
+        Updates the total energy drawn (kWh) from solar, battery, and grid over [t0, t1].
+        Solar is sampled at the interval midpoint.
+        Priority: solar first, then battery, then grid.
+        Excess solar charges the battery.
         """
         delta = t1 - t0
-        if delta <= 0 or self.occupied_spots == 0:
+        if delta <= 0:
             return
 
         mid = 0.5 * (t0 + t1)
-        demand = self.occupied_spots * self.charger_power_rate
         solar = self.get_solar_power(mid)
-
         hours = delta / 60.0
-        solar_used = min(demand, solar)
-        grid_used = max(0.0, demand - solar_used)
 
-        if grid_used < 0 or solar_used < 0:
-            print(f"NEGATIVE: t0={t0:.1f} t1={t1:.1f} demand={demand:.3f} solar={solar:.3f} solar_used={solar_used:.3f} grid_used={grid_used:.3f}")
+        # charge battery with any solar s
+        if self.battery_capacity_kwh > 0 and solar > 0:
+            demand = self.occupied_spots * self.charger_power_rate
+            surplus = max(0.0, solar - demand)
+            battery_space = self.battery_capacity_kwh - self.battery_charge_kwh
+            charged = min(surplus * hours, battery_space)
+            self.battery_charge_kwh += charged
+
+        if self.occupied_spots == 0:
+            return
+
+        demand = self.occupied_spots * self.charger_power_rate
+
+        # solar first
+        solar_used = min(demand, solar)
+        remaining = demand - solar_used
+
+        # battery second
+        battery_used = 0.0
+        if self.battery_capacity_kwh > 0 and remaining > 0:
+            available = self.battery_charge_kwh
+            battery_used = min(remaining * hours, available)
+            self.battery_charge_kwh -= battery_used
+            remaining -= battery_used / hours 
+
+        # grid last
+        grid_used = max(0.0, remaining)
 
         self.total_solar_generated_kwh += solar_used * hours
         self.total_grid_drawn_kwh += grid_used * hours
+        self.total_battery_discharged_kwh += battery_used
 
         hour = int((mid // 60) % 24)
         self.hourly_solar_kwh[hour] += solar_used * hours
@@ -93,6 +120,3 @@ class Station:
         window = self.op_end - self.op_start
         denom = self.capacity * window
         return self.occupied_spot_minutes / denom if denom > 0 else 0.0
-    
-   
-    

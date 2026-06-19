@@ -7,8 +7,8 @@ class EventType(Enum):
     Establish the types of events that can occcur.
     """
     ARRIVAL = 1         # Customer arrives at charging point
-    CHARGING = 2        # Customer begins charging
-    DEPARTURE = 3       # Customer leaves the charging point
+    CHARGING = 2        # Customer ends charging
+    DEPARTURE = 3       # Customer leaves work
     MONITOR = 4         # Periodic sampler for energy + queue statistics
 
 class Event:
